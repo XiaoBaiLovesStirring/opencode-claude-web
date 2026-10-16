@@ -32,7 +32,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hira
   background:var(--parchment);color:var(--text);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow:hidden;overscroll-behavior:none}
 .serif{font-family:Georgia,"Times New Roman","Songti SC","Noto Serif SC",serif}
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;text-align:left}
-.app{display:flex;height:100dvh;height:100vh;overflow:hidden}
+.app{display:flex;height:var(--app-h,100dvh);overflow:hidden}
 
 .sidebar{width:var(--sidebar-w);flex:0 0 var(--sidebar-w);background:var(--sand);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
 .brand{display:flex;align-items:center;gap:10px;padding:18px 16px 12px}
@@ -49,6 +49,9 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
 .session.on{background:var(--hover);color:var(--text);font-weight:500}
 .session small{display:block;font-size:11.5px;color:var(--text3);font-weight:400;margin-top:2px}
 .empty-hint{padding:14px 18px;font-size:12.5px;color:var(--text3);line-height:1.6}
+/* 当前工作目录 */
+.workdir{padding:9px 18px;font-size:11.5px;color:var(--text3);font-family:var(--mono);
+  border-top:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .foot{padding:10px 12px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
 .foot button{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:9px;font-size:14px;color:var(--text2);transition:.12s}
 .foot button:hover{background:var(--hover);color:var(--text)}
@@ -85,9 +88,26 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
 .turn .body{flex:1;min-width:0;padding-top:2px;overflow-wrap:anywhere}
 .turn.user{justify-content:flex-end}
 .turn.user .body{flex:0 1 auto;max-width:78%;background:var(--bubble);border-radius:16px;padding:10px 14px;white-space:pre-wrap}
-.p{font-size:15.5px;line-height:1.65;margin:6px 0}
+.p{font-size:15.5px;line-height:1.65;margin:8px 0}
 .p + .p{margin-top:10px}
-.p code,li code{font-family:var(--mono);font-size:13px;background:var(--sand);padding:1.5px 5px;border-radius:5px;color:var(--text)}
+.p code,li code,.mdtable code{font-family:var(--mono);font-size:13px;background:var(--sand);padding:1.5px 5px;border-radius:5px;color:var(--text)}
+.p a{color:var(--terracotta);text-decoration:underline;text-underline-offset:2px;word-break:break-all}
+.turn .body h1,.turn .body h2,.turn .body h3,.turn .body h4,.turn .body h5,.turn .body h6{margin:16px 0 8px;line-height:1.35;font-weight:600;letter-spacing:-.01em}
+.turn .body h1{font-size:21px}
+.turn .body h2{font-size:18.5px}
+.turn .body h3{font-size:16.5px}
+.turn .body h4,.turn .body h5,.turn .body h6{font-size:15.5px}
+.turn .body ul,.turn .body ol{margin:8px 0;padding-left:22px}
+.turn .body li{margin:4px 0;line-height:1.65;font-size:15.5px}
+.turn .body blockquote{margin:10px 0;padding:4px 0 4px 12px;border-left:3px solid var(--border);color:var(--text2)}
+.turn .body blockquote .p{margin:4px 0}
+.turn .body hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+/* Markdown 表格 */
+.tblwrap{overflow-x:auto;margin:12px 0;border:1px solid var(--border);border-radius:10px;background:var(--ivory);-webkit-overflow-scrolling:touch}
+.mdtable{border-collapse:collapse;width:100%;font-size:13.5px}
+.mdtable th,.mdtable td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.55}
+.mdtable th{background:var(--sand);font-weight:600;color:var(--text);white-space:nowrap}
+.mdtable tr:last-child td{border-bottom:none}
 .msgmeta{margin-top:8px;font-size:11.5px;color:var(--text3);font-family:var(--mono)}
 
 .think{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--text3);padding:5px 0;cursor:pointer;transition:.14s;max-width:100%}
@@ -233,6 +253,7 @@ textarea::placeholder{color:var(--text3)}
     <div class="sessions" id="sessions">
       <div class="empty-hint" data-i18n="noSessions">这里会列出你与 OpenCode 的会话</div>
     </div>
+    <div class="workdir" id="workdir" title=""></div>
     <div class="foot">
       <button id="openPlugins">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
@@ -396,8 +417,81 @@ function highlightAll(root){
   }
 }
 
+/* ---------- markdown：块级 + 行内 ---------- */
+function inline(s){
+  s = esc(s);
+  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*\w])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/~~([^~\n]+)~~/g, "<del>$1</del>");
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\n/g, "<br>");
+  return s;
+}
+function isTableSep(l){ return /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(l); }
+function isListItem(l){ return /^\s*([-*+]|\d+[.)])\s+/.test(l); }
+function renderTable(rows){
+  var cells = rows.map(function(r){
+    return r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(function(c){ return c.trim(); });
+  });
+  var head = cells[0] || [], body = cells.slice(2);
+  var h = '<div class="tblwrap"><table class="mdtable"><thead><tr>';
+  h += head.map(function(c){ return "<th>" + inline(c) + "</th>"; }).join("");
+  h += "</tr></thead><tbody>";
+  for (var i=0;i<body.length;i++){
+    h += "<tr>" + body[i].map(function(c){ return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
+  }
+  return h + "</tbody></table></div>";
+}
+function blocksToHtml(text){
+  var lines = String(text || "").split("\n");
+  var out = [], i = 0;
+  while (i < lines.length){
+    var line = lines[i];
+    if (!line.trim()){ i++; continue; }
+    // 分割线
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)){ out.push("<hr>"); i++; continue; }
+    // 标题
+    var hm = line.match(/^(#{1,6})\s+(.*?)\s*#*$/);
+    if (hm){ var lv = hm[1].length; out.push("<h" + lv + ">" + inline(hm[2]) + "</h" + lv + ">"); i++; continue; }
+    // 表格（当前行有 |，下一行是分隔行）
+    if (line.indexOf("|") >= 0 && i + 1 < lines.length && isTableSep(lines[i+1])){
+      var tb = [];
+      while (i < lines.length && lines[i].indexOf("|") >= 0 && lines[i].trim()){ tb.push(lines[i]); i++; }
+      out.push(renderTable(tb)); continue;
+    }
+    // 引用
+    if (/^\s*>\s?/.test(line)){
+      var q = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])){ q.push(lines[i].replace(/^\s*>\s?/, "")); i++; }
+      out.push("<blockquote>" + blocksToHtml(q.join("\n")) + "</blockquote>"); continue;
+    }
+    // 列表
+    if (isListItem(line)){
+      var ordered = /^\s*\d+[.)]\s+/.test(line);
+      var items = [];
+      while (i < lines.length && isListItem(lines[i])){
+        items.push(lines[i].replace(/^\s*([-*+]|\d+[.)])\s+/, "")); i++;
+      }
+      var tag = ordered ? "ol" : "ul";
+      out.push("<" + tag + ">" + items.map(function(x){ return "<li>" + inline(x) + "</li>"; }).join("") + "</" + tag + ">");
+      continue;
+    }
+    // 段落
+    var para = [];
+    while (i < lines.length && lines[i].trim()
+           && !/^(#{1,6}\s|\s*>\s?)/.test(lines[i])
+           && !isListItem(lines[i])
+           && !(lines[i].indexOf("|") >= 0 && i + 1 < lines.length && isTableSep(lines[i+1]))){
+      para.push(lines[i]); i++;
+    }
+    if (para.length) out.push('<p class="p">' + inline(para.join("\n")) + "</p>");
+    else i++;
+  }
+  return out.join("");
+}
 function mdToHtml(src){
-  var parts = String(src||"").split("```"), out = "";
+  var parts = String(src || "").split("```"), out = "";
   for (var i=0;i<parts.length;i++){
     if (i % 2 === 1){
       var seg = parts[i], nl = seg.indexOf("\n");
@@ -405,7 +499,7 @@ function mdToHtml(src){
       var code = nl >= 0 ? seg.slice(nl+1) : seg;
       out += codeCard(info.split(/\s+/)[0] || "text", code);
     } else {
-      out += textToHtml(parts[i]);
+      out += blocksToHtml(parts[i]);
     }
   }
   return out;
@@ -419,18 +513,7 @@ function codeCard(langName, code){
     '<button class="fld" aria-label="fold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>'+
     '</div><div class="card-body"><pre data-lang="'+esc(langName)+'">'+esc(code)+'</pre></div></div>';
 }
-function textToHtml(txt){
-  return String(txt||"").split(/\n{2,}/).map(function(p){
-    var s = p.trim(); if (!s) return "";
-    s = esc(s);
-    s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-    s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/^#{1,6}\s+(.+)$/gm, "<strong>$1</strong>");
-    s = s.replace(/^[-*]\s+(.+)$/gm, "• $1");
-    s = s.replace(/\n/g, "<br>");
-    return '<p class="p">'+s+'</p>';
-  }).join("");
-}
+function textToHtml(txt){ return blocksToHtml(txt); }
 
 var S = { models:[], plugins:[], agents:[], sessions:[], directory:"", messages:[], sessionID:null,
           sending:false, timer:null, model:null, pending:null, connected:false };
@@ -488,6 +571,8 @@ async function boot(){
     S.model = d ? { id: d.id || d.modelID, providerID: d.providerID, name: d.name || d.id } : (S.models[0] || null);
     var loc = res[5] && (res[5].data || res[5]);
     S.directory = (loc && loc.directory) || "";
+    var wd = document.getElementById("workdir");
+    if (wd){ wd.textContent = S.directory || ""; wd.title = S.directory || ""; }
 
     document.getElementById("pluginCount").textContent = S.plugins.length;
     document.getElementById("agentCount").textContent = S.agents.length;
@@ -773,6 +858,16 @@ var tags = document.querySelectorAll(".tag");
 for (var i=0;i<tags.length;i++){
   tags[i].onclick = function(){ ta.value = this.textContent; ta.focus(); ta.style.height="auto"; ta.style.height = Math.min(ta.scrollHeight,160)+"px"; };
 }
+
+/* 移动端视口：用 visualViewport 精确贴合，避免浏览器地址栏把底部输入框顶出屏幕 */
+function setAppHeight(){
+  var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  document.documentElement.style.setProperty("--app-h", h + "px");
+}
+setAppHeight();
+window.addEventListener("resize", setAppHeight);
+window.addEventListener("orientationchange", function(){ setTimeout(setAppHeight, 250); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", setAppHeight);
 
 applyTheme(); applyLang(); boot();
 </script>
