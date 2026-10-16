@@ -1,0 +1,6 @@
+/* 这个文件由 start.sh 自动生成，此处仅为示例。
+   真实文件名为 config.js，含本地服务凭据，已在 .gitignore 中排除。 */
+window.OCW_CONFIG = {
+  baseUrl: "http://127.0.0.1:4096",
+  auth: "<base64 编码的 opencode:密码>"
+};
